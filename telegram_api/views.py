@@ -57,7 +57,6 @@ class UpdateAPICredentialsView(APIView):
         os.environ['API_HASH'] = api_hash
         os.environ['PHONE_NUMBER'] = phone_number
 
-        # Ensure client is reinitialized
         result = run_async(initialize_telegram_client(api_id, api_hash, phone_number))
 
         if isinstance(result, dict) and 'error' in result:
@@ -86,19 +85,16 @@ class InputCodeView(APIView):
         result = run_async(complete_login())
         return Response(result)
 
-# Fetch group usernames based on IDs
 async def get_group_usernames_by_ids(group_ids):
     return await sync_to_async(list)(
         TelegramGroups.objects.filter(group_id__in=group_ids).values_list('username', flat=True))
 
-# Fetch user details based on IDs
 async def get_users_by_ids(user_ids):
     users = await sync_to_async(list)(
         Users.objects.filter(user_id__in=user_ids).values('user_id', 'username')
     )
     return users
 
-# Invite users to groups
 async def invite_users_to_groups_inner(user_ids, group_ids):
     global client
     if not client or not client.is_connected():
@@ -113,7 +109,7 @@ async def invite_users_to_groups_inner(user_ids, group_ids):
             if user['username']:
                 user_entity = await client.get_input_entity(user['username'])
             else:
-                user_entity = InputPeerUser(user['user_id'], 0)  # Assuming 0 if access_hash is not needed or stored
+                user_entity = InputPeerUser(user['user_id'], 0)
         except Exception as e:
             results.append({"error": f"Error fetching user entity for {user['user_id']}: {e}"})
             continue
@@ -122,7 +118,7 @@ async def invite_users_to_groups_inner(user_ids, group_ids):
             try:
                 group = await client.get_entity(f'@{group_username}')
                 await client(InviteToChannelRequest(group, [user_entity]))
-                await asyncio.sleep(30)  # Adjust the sleep time as necessary
+                await asyncio.sleep(900)
                 results.append({"message": f"User {user['user_id']} invited to {group_username}"})
             except UserPrivacyRestrictedError:
                 results.append({"error": f"Cannot invite {user['user_id']} to {group_username} due to privacy settings."})
@@ -142,7 +138,6 @@ class InviteUsersView(APIView):
         result = run_async(invite_users_to_groups_inner(user_ids, group_ids))
         return Response(result)
 
-# Remove users from groups
 async def remove_users_from_groups_inner(user_ids, group_ids):
     global client
     if not client or not client.is_connected():
@@ -157,7 +152,7 @@ async def remove_users_from_groups_inner(user_ids, group_ids):
             if user['username']:
                 user_entity = await client.get_input_entity(user['username'])
             else:
-                user_entity = InputPeerUser(user['user_id'], 0)  # Assuming 0 if access_hash is not needed or stored
+                user_entity = InputPeerUser(user['user_id'], 0)
         except Exception as e:
             results.append({"error": f"Error fetching user entity for {user['user_id']}: {e}"})
             continue
@@ -167,7 +162,7 @@ async def remove_users_from_groups_inner(user_ids, group_ids):
                 group = await client.get_entity(f'@{group_username}')
                 banned_rights = ChatBannedRights(until_date=None, view_messages=True)
                 await client(EditBannedRequest(channel=group, participant=user_entity, banned_rights=banned_rights))
-                await asyncio.sleep(30)  # Adjust the sleep time as necessary
+                await asyncio.sleep(900)
                 results.append({"message": f"User {user['user_id']} removed from {group_username}"})
             except UserPrivacyRestrictedError:
                 results.append({"error": f"Cannot remove {user['user_id']} from {group_username} due to privacy settings."})
@@ -187,7 +182,6 @@ class RemoveUsersView(APIView):
         result = run_async(remove_users_from_groups_inner(user_ids, group_ids))
         return Response(result)
 
-# Post a message to groups
 async def post_message_to_groups_inner(message, group_ids):
     global client
     if not client or not client.is_connected():
@@ -200,7 +194,7 @@ async def post_message_to_groups_inner(message, group_ids):
         try:
             group = await client.get_entity(f'@{group_username}')
             await client.send_message(group, message)
-            await asyncio.sleep(900)  # Adjust the sleep time as necessary
+            await asyncio.sleep(900)
             results.append({"message": f"Message sent to {group_username}"})
         except errors.UserPrivacyRestrictedError:
             results.append({"error": f"Cannot post message to {group_username}. Privacy settings restricted."})
@@ -228,7 +222,7 @@ class PostMessageToGroupsView(APIView):
         results = run_async(post_message_to_groups_inner(message, group_ids))
         return Response(results)
 
-# Fetch group usernames where the admin has privileges
+
 async def get_admin_group_usernames():
     dialogs = await client(GetDialogsRequest(
         offset_date=None,
