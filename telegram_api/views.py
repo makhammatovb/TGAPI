@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 from .models import TelegramGroups, Admins, Users
 from asgiref.sync import sync_to_async, async_to_sync
 from telethon.tl.types import InputPeerUser
+from django.contrib.auth.decorators import login_required
+from django.utils.decorators import method_decorator
 
 load_dotenv()
 
@@ -61,6 +63,8 @@ class UpdateAPICredentialsView(APIView):
 
         if isinstance(result, dict) and 'error' in result:
             return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        request.session['admin_id'] = admin_id
 
         return Response({"message": "API credentials updated and Telegram client reinitialized."})
 
@@ -244,7 +248,58 @@ async def get_admin_group_usernames():
 
     return admin_group_usernames
 
+
+async def fetch_telegram_groups():
+    global client
+    if client is None:
+        raise Exception("Telegram client is not initialized")
+
+    result = []
+    async for dialog in client.iter_dialogs():
+        if dialog.is_group:
+            group = {
+                'name': dialog.name,
+                'username': dialog.entity.username,
+                'group_id': dialog.entity.id
+            }
+            result.append(group)
+
+    return result
+
+
 class GetGroupsView(APIView):
     def get(self, request):
-        admin_group_usernames = run_async(get_admin_group_usernames())
-        return Response({"admin_group_usernames": admin_group_usernames})
+        admin_id = request.session.get('admin_id')  # Retrieve the admin_id from the session
+
+        if not admin_id:
+            return Response({"error": "Admin ID is missing."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            admin = Admins.objects.get(admin_id=admin_id)
+
+            api_id = admin.api_id
+            api_hash = admin.api_hash
+            phone_number = admin.phone_number
+
+            if not api_id or not api_hash or not phone_number:
+                return Response({"error": "Admin credentials are missing."}, status=status.HTTP_400_BAD_REQUEST)
+
+            async_to_sync(initialize_telegram_client)(api_id, api_hash, phone_number)
+            groups = async_to_sync(fetch_telegram_groups)()
+
+            for group in groups:
+                TelegramGroups.objects.update_or_create(
+                    username=group['username'],
+                    defaults={
+                        'name': group['name'],
+                        'group_id': group['group_id'],
+                        'admin': admin
+                    }
+                )
+            admin_group_usernames = [group['username'] for group in groups]
+            return Response({"admin_group_usernames": admin_group_usernames})
+
+        except Admins.DoesNotExist:
+            return Response({"error": "Admin not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

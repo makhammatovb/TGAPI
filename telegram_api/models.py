@@ -3,7 +3,7 @@ from django.db import models
 
 # Create your models here.
 class Admins(models.Model):
-    admin_id = models.IntegerField(unique=True)
+    admin_id = models.IntegerField(unique=True, primary_key=True)
     name = models.CharField(max_length=100)
     username = models.CharField(max_length=100)
     api_id = models.IntegerField(unique=True)
@@ -22,7 +22,7 @@ class Admins(models.Model):
 class TelegramGroups(models.Model):
     name = models.CharField(max_length=100)
     username = models.CharField(max_length=100, unique=True)
-    group_id = models.IntegerField(unique=True)
+    group_id = models.IntegerField(unique=True, primary_key=True)
     admin = models.ForeignKey(Admins, on_delete=models.CASCADE)
 
     def __str__(self):
@@ -50,7 +50,7 @@ class TelegramGroups(models.Model):
 class Users(models.Model):
     name = models.CharField(max_length=100)
     username = models.CharField(max_length=100, unique=True)
-    user_id = models.IntegerField(unique=True)
+    user_id = models.IntegerField(unique=True, primary_key=True)
 
     def __str__(self):
         return f"{self.user_id}. {self.name}"
