@@ -99,6 +99,7 @@ async def get_users_by_ids(user_ids):
     )
     return users
 
+
 async def invite_users_to_groups_inner(user_ids, group_ids):
     global client
     if not client or not client.is_connected():
@@ -108,6 +109,8 @@ async def invite_users_to_groups_inner(user_ids, group_ids):
     users = await get_users_by_ids(user_ids)
 
     results = []
+    operation_count = 0
+
     for user in users:
         try:
             if user['username']:
@@ -122,16 +125,23 @@ async def invite_users_to_groups_inner(user_ids, group_ids):
             try:
                 group = await client.get_entity(f'@{group_username}')
                 await client(InviteToChannelRequest(group, [user_entity]))
-                await asyncio.sleep(900)
                 results.append({"message": f"User {user['user_id']} invited to {group_username}"})
+                operation_count += 1
+
+                if operation_count % 50 == 0:
+                    await asyncio.sleep(600)
+
             except UserPrivacyRestrictedError:
-                results.append({"error": f"Cannot invite {user['user_id']} to {group_username} due to privacy settings."})
+                results.append(
+                    {"error": f"Cannot invite {user['user_id']} to {group_username} due to privacy settings."})
             except FloodWaitError as e:
                 await asyncio.sleep(e.seconds)
             except ChatAdminRequiredError:
-                results.append({"error": f"Cannot invite {user['user_id']} to {group_username}. Account lacks admin privileges."})
+                results.append(
+                    {"error": f"Cannot invite {user['user_id']} to {group_username}. Account lacks admin privileges."})
             except Exception as e:
                 results.append({"error": f"An error occurred: {e}"})
+
     return results
 
 class InviteUsersView(APIView):
@@ -142,6 +152,7 @@ class InviteUsersView(APIView):
         result = run_async(invite_users_to_groups_inner(user_ids, group_ids))
         return Response(result)
 
+
 async def remove_users_from_groups_inner(user_ids, group_ids):
     global client
     if not client or not client.is_connected():
@@ -151,6 +162,8 @@ async def remove_users_from_groups_inner(user_ids, group_ids):
     users = await get_users_by_ids(user_ids)
 
     results = []
+    operation_count = 0
+
     for user in users:
         try:
             if user['username']:
@@ -166,16 +179,23 @@ async def remove_users_from_groups_inner(user_ids, group_ids):
                 group = await client.get_entity(f'@{group_username}')
                 banned_rights = ChatBannedRights(until_date=None, view_messages=True)
                 await client(EditBannedRequest(channel=group, participant=user_entity, banned_rights=banned_rights))
-                await asyncio.sleep(900)
                 results.append({"message": f"User {user['user_id']} removed from {group_username}"})
+                operation_count += 1
+
+                if operation_count % 50 == 0:
+                    await asyncio.sleep(600)
+
             except UserPrivacyRestrictedError:
-                results.append({"error": f"Cannot remove {user['user_id']} from {group_username} due to privacy settings."})
+                results.append(
+                    {"error": f"Cannot remove {user['user_id']} from {group_username} due to privacy settings."})
             except FloodWaitError as e:
                 await asyncio.sleep(e.seconds)
             except ChatAdminRequiredError:
-                results.append({"error": f"Cannot remove {user['user_id']} from {group_username}. Account lacks admin privileges."})
+                results.append({
+                                   "error": f"Cannot remove {user['user_id']} from {group_username}. Account lacks admin privileges."})
             except Exception as e:
                 results.append({"error": f"An error occurred: {e}"})
+
     return results
 
 class RemoveUsersView(APIView):
@@ -186,6 +206,7 @@ class RemoveUsersView(APIView):
         result = run_async(remove_users_from_groups_inner(user_ids, group_ids))
         return Response(result)
 
+
 async def post_message_to_groups_inner(message, group_ids):
     global client
     if not client or not client.is_connected():
@@ -194,12 +215,18 @@ async def post_message_to_groups_inner(message, group_ids):
     group_usernames = await get_group_usernames_by_ids(group_ids)
 
     results = []
+    operation_count = 0
+
     for group_username in group_usernames:
         try:
             group = await client.get_entity(f'@{group_username}')
             await client.send_message(group, message)
-            await asyncio.sleep(900)
             results.append({"message": f"Message sent to {group_username}"})
+            operation_count += 1
+
+            if operation_count % 50 == 0:
+                await asyncio.sleep(600)
+
         except errors.UserPrivacyRestrictedError:
             results.append({"error": f"Cannot post message to {group_username}. Privacy settings restricted."})
         except errors.FloodWaitError as e:
@@ -209,6 +236,7 @@ async def post_message_to_groups_inner(message, group_ids):
             results.append({"error": f"Cannot post message to {group_username}. Admin privileges required."})
         except Exception as e:
             results.append({"error": f"Error posting message to {group_username}: {str(e)}"})
+
     return results
 
 class PostMessageToGroupsView(APIView):
@@ -245,31 +273,59 @@ async def get_admin_group_usernames():
                     admin_group_usernames[dialog.id] = dialog.username
             except Exception as e:
                 print(f"Error fetching admin status for {dialog.username}: {e}")
-
+    print(admin_group_usernames)
     return admin_group_usernames
 
 
-async def fetch_telegram_groups():
+async def get_dialogs():
     global client
-    if client is None:
-        raise Exception("Telegram client is not initialized")
+    if client is None or not client.is_connected():
+        raise Exception("Telegram client is not initialized or connected.")
 
-    result = []
-    async for dialog in client.iter_dialogs():
-        if dialog.is_group:
-            group = {
-                'name': dialog.name,
-                'username': dialog.entity.username,
-                'group_id': dialog.entity.id
-            }
-            result.append(group)
+    return await client(GetDialogsRequest(
+        offset_date=None,
+        offset_id=0,
+        offset_peer=InputPeerEmpty(),
+        limit=200,
+        hash=0
+    ))
 
-    return result
+def fetch_groups_by_admin_sync(admin_id):
+    try:
+        admin = Admins.objects.get(admin_id=admin_id)
+        telegram_user_id = admin.telegram_user_id
 
+        dialogs = run_async(get_dialogs())
+
+        result = []
+        for dialog in dialogs.chats:
+            try:
+                entity = dialog
+                if isinstance(entity, Channel) and entity.username:
+                    full_channel = run_async(client.get_permissions(entity, InputUser(telegram_user_id, 0)))
+                    if full_channel.is_admin:
+                        group = {
+                            'name': entity.title,
+                            'username': entity.username,
+                            'admin': admin
+                        }
+                        result.append(group)
+            except Exception as e:
+                print(f"Error fetching admin status for {entity.username if hasattr(entity, 'username') else 'unknown'}: {e}")
+                continue
+
+        return result
+
+    except Admins.DoesNotExist:
+        print(f"Admin with admin_id={admin_id} not found.")
+        return []
+    except Exception as e:
+        print(f"Error fetching groups for admin_id={admin_id}: {str(e)}")
+        return []
 
 class GetGroupsView(APIView):
     def get(self, request):
-        admin_id = request.session.get('admin_id')  # Retrieve the admin_id from the session
+        admin_id = request.session.get('admin_id')
 
         if not admin_id:
             return Response({"error": "Admin ID is missing."}, status=status.HTTP_400_BAD_REQUEST)
@@ -277,29 +333,26 @@ class GetGroupsView(APIView):
         try:
             admin = Admins.objects.get(admin_id=admin_id)
 
-            api_id = admin.api_id
-            api_hash = admin.api_hash
-            phone_number = admin.phone_number
+            run_async(initialize_telegram_client(admin.api_id, admin.api_hash, admin.phone_number))
 
-            if not api_id or not api_hash or not phone_number:
-                return Response({"error": "Admin credentials are missing."}, status=status.HTTP_400_BAD_REQUEST)
-
-            async_to_sync(initialize_telegram_client)(api_id, api_hash, phone_number)
-            groups = async_to_sync(fetch_telegram_groups)()
+            groups = fetch_groups_by_admin_sync(admin_id)
 
             for group in groups:
                 TelegramGroups.objects.update_or_create(
                     username=group['username'],
                     defaults={
                         'name': group['name'],
-                        'group_id': group['group_id'],
-                        'admin': admin
+                        'admin': group['admin']
                     }
                 )
+
             admin_group_usernames = [group['username'] for group in groups]
+            print(f"Admin group usernames: {admin_group_usernames}")
             return Response({"admin_group_usernames": admin_group_usernames})
 
         except Admins.DoesNotExist:
             return Response({"error": "Admin not found."}, status=status.HTTP_404_NOT_FOUND)
+
         except Exception as e:
+            print(f"Error in GetGroupsView: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

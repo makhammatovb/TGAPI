@@ -9,6 +9,7 @@ class Admins(models.Model):
     api_id = models.IntegerField(unique=True)
     api_hash = models.CharField(max_length=100)
     phone_number = models.CharField(max_length=13)
+    telegram_user_id = models.IntegerField()
 
     def __str__(self):
         return f"{self.admin_id}. {self.name}"

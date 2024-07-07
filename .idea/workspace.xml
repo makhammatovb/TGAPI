@@ -5,11 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="bf22475f-dbc8-4cfe-a73c-8d6e65c3451f" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/db.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/db.sqlite3" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/db.sqlite3" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/session_name.session" beforeDir="false" afterPath="$PROJECT_DIR$/session_name.session" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/telegram_api/admin.py" beforeDir="false" afterPath="$PROJECT_DIR$/telegram_api/admin.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/telegram_api/migrations/0001_initial.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/telegram_api/migrations/0002_remove_admins_id_remove_telegramgroups_id_and_more.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/telegram_api/migrations/__init__.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/telegram_api/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/telegram_api/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/telegram_api/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/telegram_api/urls.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/telegram_api/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/telegram_api/views.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -36,22 +38,22 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Python.urls.executor": "Run",
-    "RunOnceActivity.OpenDjangoStructureViewOnStart": "true",
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "main",
-    "last_opened_file_path": "C:/Users/User/OneDrive/Рабочий стол/Excel/Najot/Excel",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Python.urls.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.OpenDjangoStructureViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/User/OneDrive/Рабочий стол/Excel/Najot/Excel&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RunManager">
     <configuration name="API" type="Python.DjangoServer" factoryName="Django server">
       <module name="API" />
@@ -98,7 +100,8 @@
       <workItem from="1720068105442" duration="5248000" />
       <workItem from="1720157048248" duration="6114000" />
       <workItem from="1720178735366" duration="6000" />
-      <workItem from="1720241462840" duration="2437000" />
+      <workItem from="1720241462840" duration="8799000" />
+      <workItem from="1720341087230" duration="7898000" />
     </task>
     <servers />
   </component>
