@@ -6,12 +6,11 @@
   <component name="ChangeListManager">
     <list default="true" id="bf22475f-dbc8-4cfe-a73c-8d6e65c3451f" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/config/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/config/urls.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/db.sqlite3" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/session_name.session" beforeDir="false" afterPath="$PROJECT_DIR$/session_name.session" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/telegram_api/migrations/0001_initial.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/telegram_api/migrations/0002_remove_admins_id_remove_telegramgroups_id_and_more.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/telegram_api/migrations/__init__.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/telegram_api/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/telegram_api/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/telegram_api/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/telegram_api/urls.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/telegram_api/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/telegram_api/views.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -101,7 +100,9 @@
       <workItem from="1720157048248" duration="6114000" />
       <workItem from="1720178735366" duration="6000" />
       <workItem from="1720241462840" duration="8799000" />
-      <workItem from="1720341087230" duration="7898000" />
+      <workItem from="1720341087230" duration="8347000" />
+      <workItem from="1720377682784" duration="1242000" />
+      <workItem from="1720417244454" duration="8525000" />
     </task>
     <servers />
   </component>

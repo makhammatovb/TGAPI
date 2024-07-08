@@ -22,7 +22,8 @@ class Admins(models.Model):
 
 class TelegramGroups(models.Model):
     name = models.CharField(max_length=100)
-    username = models.CharField(max_length=100, unique=True)
+    username = models.CharField(max_length=100, null=True, blank=True)
+    telegram_chat_id = models.IntegerField(unique=True)
     group_id = models.IntegerField(unique=True, primary_key=True)
     admin = models.ForeignKey(Admins, on_delete=models.CASCADE)
 

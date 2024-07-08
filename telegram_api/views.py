@@ -20,6 +20,7 @@ from django.utils.decorators import method_decorator
 load_dotenv()
 
 client = None
+groups_file = 'groups.json'
 
 async def initialize_telegram_client(api_id, api_hash, phone_number):
     global client
@@ -29,7 +30,10 @@ async def initialize_telegram_client(api_id, api_hash, phone_number):
         os.remove(f'session_name.session')
     client = TelegramClient('session_name', api_id, api_hash)
     await client.connect()
-    await client.send_code_request(phone_number)
+    if not await client.is_user_authorized():
+        await client.send_code_request(phone_number)
+        return "Verification code sent"
+    return client
 
 def run_async(coroutine):
     return asyncio.run_coroutine_threadsafe(coroutine, loop).result()
@@ -279,22 +283,19 @@ async def get_admin_group_usernames():
 
 async def get_dialogs():
     global client
-    if client is None or not client.is_connected():
-        raise Exception("Telegram client is not initialized or connected.")
-
-    return await client(GetDialogsRequest(
+    if client is None:
+        raise Exception("Telegram client is not initialized")
+    dialogs = await client(GetDialogsRequest(
         offset_date=None,
         offset_id=0,
         offset_peer=InputPeerEmpty(),
         limit=200,
         hash=0
     ))
+    return dialogs
 
-def fetch_groups_by_admin_sync(admin_id):
+def fetch_groups_by_telegram_user_id(telegram_user_id):
     try:
-        admin = Admins.objects.get(admin_id=admin_id)
-        telegram_user_id = admin.telegram_user_id
-
         dialogs = run_async(get_dialogs())
 
         result = []
@@ -302,26 +303,27 @@ def fetch_groups_by_admin_sync(admin_id):
             try:
                 entity = dialog
                 if isinstance(entity, Channel) and entity.username:
-                    full_channel = run_async(client.get_permissions(entity, InputUser(telegram_user_id, 0)))
-                    if full_channel.is_admin:
-                        group = {
-                            'name': entity.title,
-                            'username': entity.username,
-                            'admin': admin
-                        }
-                        result.append(group)
+                    group = {
+                        'name': entity.title,
+                        'username': entity.username,
+                        'group_id': entity.id,
+                    }
+                    result.append(group)
             except Exception as e:
-                print(f"Error fetching admin status for {entity.username if hasattr(entity, 'username') else 'unknown'}: {e}")
+                print(f"Error fetching group {entity.username if hasattr(entity, 'username') else 'unknown'}: {e}")
                 continue
 
         return result
 
-    except Admins.DoesNotExist:
-        print(f"Admin with admin_id={admin_id} not found.")
-        return []
     except Exception as e:
-        print(f"Error fetching groups for admin_id={admin_id}: {str(e)}")
+        print(f"Error fetching groups: {str(e)}")
         return []
+
+def save_groups_to_json(admin_id, groups):
+    file_path = f'admin_{admin_id}_groups.json'
+    with open(file_path, 'w') as f:
+        json.dump(groups, f, indent=4)
+    return file_path
 
 class GetGroupsView(APIView):
     def get(self, request):
@@ -335,24 +337,82 @@ class GetGroupsView(APIView):
 
             run_async(initialize_telegram_client(admin.api_id, admin.api_hash, admin.phone_number))
 
-            groups = fetch_groups_by_admin_sync(admin_id)
+            telegram_user_id = admin.telegram_user_id
+            groups = fetch_groups_by_telegram_user_id(telegram_user_id)
 
-            for group in groups:
-                TelegramGroups.objects.update_or_create(
-                    username=group['username'],
-                    defaults={
-                        'name': group['name'],
-                        'admin': group['admin']
-                    }
-                )
-
-            admin_group_usernames = [group['username'] for group in groups]
-            print(f"Admin group usernames: {admin_group_usernames}")
-            return Response({"admin_group_usernames": admin_group_usernames})
+            file_path = save_groups_to_json(admin_id, groups)
+            print(f"Groups saved to {file_path}")
+            return Response({"message": f"Groups saved to {file_path}"})
 
         except Admins.DoesNotExist:
             return Response({"error": "Admin not found."}, status=status.HTTP_404_NOT_FOUND)
 
         except Exception as e:
             print(f"Error in GetGroupsView: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+async def get_active_groups_inner():
+    global client
+    if client is None:
+        raise Exception("Telegram client is not initialized")
+
+    dialogs = await client(GetDialogsRequest(
+        offset_date=None,
+        offset_id=0,
+        offset_peer=InputPeerEmpty(),
+        limit=200,
+        hash=0
+    ))
+
+    current_groups = {dialog.id: {
+        'title': dialog.title,
+        'username': dialog.username
+    } for dialog in dialogs.chats if isinstance(dialog, Channel) and (dialog.megagroup or dialog.broadcast)}
+
+    if not os.path.exists(groups_file):
+        with open(groups_file, 'w') as f:
+            json.dump(current_groups, f, indent=4)
+        return {"message": "Initial group list saved."}
+
+    with open(groups_file, 'r') as f:
+        previous_groups = json.load(f)
+
+    new_groups = {gid: details for gid, details in current_groups.items() if str(gid) not in previous_groups}
+
+    response = {}
+    if new_groups:
+        response["new_groups_detected"] = len(new_groups)
+        response["groups"] = new_groups
+    else:
+        response["message"] = "No new groups detected."
+
+    with open(groups_file, 'w') as f:
+        json.dump(current_groups, f, indent=4)
+
+    return response
+
+class GetActiveGroupsView(APIView):
+    def get(self, request):
+        admin_id = request.session.get('admin_id')
+
+        if not admin_id:
+            return Response({"error": "Admin ID is missing."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            admin = Admins.objects.get(admin_id=admin_id)
+            api_id = admin.api_id
+            api_hash = admin.api_hash
+            phone_number = admin.phone_number
+
+            # Initialize the Telegram client
+            # result = run_async(initialize_telegram_client(api_id, api_hash, phone_number))
+
+            # Fetch active groups
+            response = run_async(get_active_groups_inner())
+            return Response(response, status=status.HTTP_200_OK)
+
+        except Admins.DoesNotExist:
+            return Response({"error": "Admin not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error in GetActiveGroupsView: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
