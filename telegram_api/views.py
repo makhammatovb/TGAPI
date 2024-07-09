@@ -281,19 +281,106 @@ async def get_admin_group_usernames():
     return admin_group_usernames
 
 
-async def get_dialogs():
+async def get_active_groups_inner(offset=0, limit=50):
     global client
     if client is None:
         raise Exception("Telegram client is not initialized")
+
     dialogs = await client(GetDialogsRequest(
         offset_date=None,
         offset_id=0,
         offset_peer=InputPeerEmpty(),
-        limit=200,
+        limit=limit,
         hash=0
     ))
-    return dialogs
 
+    current_groups = {dialog.id: {
+        'title': dialog.title,
+        'username': dialog.username
+    } for dialog in dialogs.chats if isinstance(dialog, Channel) and (dialog.megagroup or dialog.broadcast)}
+
+    if not os.path.exists(groups_file):
+        with open(groups_file, 'w') as f:
+            json.dump(current_groups, f, indent=4)
+        return {"message": "Initial group list saved."}
+
+    with open(groups_file, 'r') as f:
+        previous_groups = json.load(f)
+
+    previous_groups.update(current_groups)
+
+    with open(groups_file, 'w') as f:
+        json.dump(previous_groups, f, indent=4)
+
+    remaining_count = len(dialogs.chats) - offset - limit
+    response = {"remaining_groups": remaining_count} if remaining_count > 0 else {}
+    return response
+
+class GetActiveGroupsView(APIView):
+    def get(self, request):
+        admin_id = request.session.get('admin_id')
+
+        if not admin_id:
+            return Response({"error": "Admin ID is missing."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            admin = Admins.objects.get(admin_id=admin_id)
+            api_id = admin.api_id
+            api_hash = admin.api_hash
+            phone_number = admin.phone_number
+
+            offset = int(request.GET.get('offset', 0))
+            limit = 50
+
+            response = run_async(get_active_groups_inner(offset, limit))
+            return Response(response, status=status.HTTP_200_OK)
+
+        except Admins.DoesNotExist:
+            return Response({"error": "Admin not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error in GetActiveGroupsView: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class SaveGroupsView(APIView):
+    def get(self, request):
+        admin_id = request.session.get('admin_id')
+
+        if not admin_id:
+            return Response({"error": "Admin ID is missing."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            admin = Admins.objects.get(admin_id=admin_id)
+            file_path = groups_file
+
+            if not os.path.exists(file_path):
+                return Response({"error": "Groups file not found."}, status=status.HTTP_404_NOT_FOUND)
+
+            with open(file_path, 'r') as f:
+                groups_data = json.load(f)
+
+            for group_id, group_info in groups_data.items():
+                group_id = int(group_id)
+                # Fetch admin groups from the API (pseudo-code)
+                admin_groups = fetch_groups_by_telegram_user_id(admin.telegram_user_id)
+                if any(group['group_id'] == group_id for group in admin_groups):
+                    TelegramGroups.objects.update_or_create(
+                        group_id=group_id,
+                        defaults={
+                            'name': group_info['title'],
+                            'username': group_info['username'],
+                            'telegram_chat_id': group_id,
+                            'admin': admin
+                        }
+                    )
+
+            return Response({"message": "Groups saved to database."}, status=status.HTTP_200_OK)
+
+        except Admins.DoesNotExist:
+            return Response({"error": "Admin not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error in SaveGroupsView: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+# Ensure you have this function implemented
 def fetch_groups_by_telegram_user_id(telegram_user_id):
     try:
         dialogs = run_async(get_dialogs())
@@ -319,43 +406,11 @@ def fetch_groups_by_telegram_user_id(telegram_user_id):
         print(f"Error fetching groups: {str(e)}")
         return []
 
-def save_groups_to_json(admin_id, groups):
-    file_path = f'admin_{admin_id}_groups.json'
-    with open(file_path, 'w') as f:
-        json.dump(groups, f, indent=4)
-    return file_path
-
-class GetGroupsView(APIView):
-    def get(self, request):
-        admin_id = request.session.get('admin_id')
-
-        if not admin_id:
-            return Response({"error": "Admin ID is missing."}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            admin = Admins.objects.get(admin_id=admin_id)
-
-            run_async(initialize_telegram_client(admin.api_id, admin.api_hash, admin.phone_number))
-
-            telegram_user_id = admin.telegram_user_id
-            groups = fetch_groups_by_telegram_user_id(telegram_user_id)
-
-            file_path = save_groups_to_json(admin_id, groups)
-            print(f"Groups saved to {file_path}")
-            return Response({"message": f"Groups saved to {file_path}"})
-
-        except Admins.DoesNotExist:
-            return Response({"error": "Admin not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        except Exception as e:
-            print(f"Error in GetGroupsView: {str(e)}")
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-async def get_active_groups_inner():
+# Ensure you have this function implemented
+async def get_dialogs():
     global client
     if client is None:
         raise Exception("Telegram client is not initialized")
-
     dialogs = await client(GetDialogsRequest(
         offset_date=None,
         offset_id=0,
@@ -363,56 +418,4 @@ async def get_active_groups_inner():
         limit=200,
         hash=0
     ))
-
-    current_groups = {dialog.id: {
-        'title': dialog.title,
-        'username': dialog.username
-    } for dialog in dialogs.chats if isinstance(dialog, Channel) and (dialog.megagroup or dialog.broadcast)}
-
-    if not os.path.exists(groups_file):
-        with open(groups_file, 'w') as f:
-            json.dump(current_groups, f, indent=4)
-        return {"message": "Initial group list saved."}
-
-    with open(groups_file, 'r') as f:
-        previous_groups = json.load(f)
-
-    new_groups = {gid: details for gid, details in current_groups.items() if str(gid) not in previous_groups}
-
-    response = {}
-    if new_groups:
-        response["new_groups_detected"] = len(new_groups)
-        response["groups"] = new_groups
-    else:
-        response["message"] = "No new groups detected."
-
-    with open(groups_file, 'w') as f:
-        json.dump(current_groups, f, indent=4)
-
-    return response
-
-class GetActiveGroupsView(APIView):
-    def get(self, request):
-        admin_id = request.session.get('admin_id')
-
-        if not admin_id:
-            return Response({"error": "Admin ID is missing."}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            admin = Admins.objects.get(admin_id=admin_id)
-            api_id = admin.api_id
-            api_hash = admin.api_hash
-            phone_number = admin.phone_number
-
-            # Initialize the Telegram client
-            # result = run_async(initialize_telegram_client(api_id, api_hash, phone_number))
-
-            # Fetch active groups
-            response = run_async(get_active_groups_inner())
-            return Response(response, status=status.HTTP_200_OK)
-
-        except Admins.DoesNotExist:
-            return Response({"error": "Admin not found."}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            print(f"Error in GetActiveGroupsView: {str(e)}")
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return dialogs

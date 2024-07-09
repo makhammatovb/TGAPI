@@ -7,9 +7,10 @@
     <list default="true" id="bf22475f-dbc8-4cfe-a73c-8d6e65c3451f" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/config/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/config/urls.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db.sqlite3" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/db.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/db.sqlite3" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/groups.json" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/session_name.session" beforeDir="false" afterPath="$PROJECT_DIR$/session_name.session" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/telegram_api/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/telegram_api/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/session_name.session-journal" beforeDir="false" afterPath="$PROJECT_DIR$/session_name.session-journal" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/telegram_api/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/telegram_api/urls.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/telegram_api/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/telegram_api/views.py" afterDir="false" />
     </list>
@@ -44,7 +45,7 @@
     &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/User/OneDrive/Рабочий стол/Excel/Najot/Excel&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/User/OneDrive/Рабочий стол/Excel/Najot/Birthday&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -102,7 +103,8 @@
       <workItem from="1720241462840" duration="8799000" />
       <workItem from="1720341087230" duration="8347000" />
       <workItem from="1720377682784" duration="1242000" />
-      <workItem from="1720417244454" duration="8525000" />
+      <workItem from="1720417244454" duration="11172000" />
+      <workItem from="1720549384380" duration="2271000" />
     </task>
     <servers />
   </component>
