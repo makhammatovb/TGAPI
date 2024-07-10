@@ -16,6 +16,8 @@ from asgiref.sync import sync_to_async, async_to_sync
 from telethon.tl.types import InputPeerUser
 from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator
+from .serializers import TelegramGroupSerializer, UpdateAPICredentialsSerializer, InputCodeSerializer, \
+    InviteUsersSerializer, RemoveUsersSerializer, PostMessagesSerializer
 
 load_dotenv()
 
@@ -44,54 +46,54 @@ thread.start()
 
 class UpdateAPICredentialsView(APIView):
     def post(self, request):
-        data = request.data
-        admin_id = data.get('admin_id')
+        serializer = UpdateAPICredentialsSerializer(data=request.data)
+        if serializer.is_valid():
+            admin_id = serializer.validated_data['admin_id']
 
-        if not admin_id:
-            return Response({"error": "Admin ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                admin = Admins.objects.get(admin_id=admin_id)
+            except Admins.DoesNotExist:
+                return Response({"error": "Admin not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        try:
-            admin = Admins.objects.get(admin_id=admin_id)
-        except Admins.DoesNotExist:
-            return Response({"error": "Admin not found."}, status=status.HTTP_404_NOT_FOUND)
+            api_id = admin.api_id
+            api_hash = admin.api_hash
+            phone_number = admin.phone_number
 
-        api_id = admin.api_id
-        api_hash = admin.api_hash
-        phone_number = admin.phone_number
+            os.environ['API_ID'] = str(api_id)
+            os.environ['API_HASH'] = api_hash
+            os.environ['PHONE_NUMBER'] = phone_number
 
-        os.environ['API_ID'] = str(api_id)
-        os.environ['API_HASH'] = api_hash
-        os.environ['PHONE_NUMBER'] = phone_number
+            result = run_async(initialize_telegram_client(api_id, api_hash, phone_number))
 
-        result = run_async(initialize_telegram_client(api_id, api_hash, phone_number))
+            if isinstance(result, dict) and 'error' in result:
+                return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        if isinstance(result, dict) and 'error' in result:
-            return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            request.session['admin_id'] = admin_id
 
-        request.session['admin_id'] = admin_id
-
-        return Response({"message": "API credentials updated and Telegram client reinitialized."})
+            return Response({"message": "API credentials updated and Telegram client reinitialized."})
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class InputCodeView(APIView):
     def post(self, request):
-        data = request.data
-        code = data.get('code')
+        serializer = InputCodeSerializer(data=request.data)
+        if serializer.is_valid():
+            code = serializer.validated_data['code']
 
-        if not code:
-            return Response({"error": "Code is required."}, status=status.HTTP_400_BAD_REQUEST)
+            async def complete_login():
+                global client
+                try:
+                    await client.sign_in(os.getenv('PHONE_NUMBER'), code)
+                    return {"message": "Login successful."}
+                except errors.SessionPasswordNeededError:
+                    return {"error": "Two-step verification enabled. Password needed."}
+                except Exception as e:
+                    return {"error": str(e)}
 
-        async def complete_login():
-            global client
-            try:
-                await client.sign_in(os.getenv('PHONE_NUMBER'), code)
-                return {"message": "Login successful."}
-            except errors.SessionPasswordNeededError:
-                return {"error": "Two-step verification enabled. Password needed."}
-            except Exception as e:
-                return {"error": str(e)}
-
-        result = run_async(complete_login())
-        return Response(result)
+            result = run_async(complete_login())
+            return Response(result)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 async def get_group_usernames_by_ids(group_ids):
     return await sync_to_async(list)(
@@ -150,11 +152,14 @@ async def invite_users_to_groups_inner(user_ids, group_ids):
 
 class InviteUsersView(APIView):
     def post(self, request):
-        data = request.data
-        user_ids = data['user_ids']
-        group_ids = data['group_ids']
-        result = run_async(invite_users_to_groups_inner(user_ids, group_ids))
-        return Response(result)
+        serializer = InviteUsersSerializer(data=request.data)
+        if serializer.is_valid():
+            user_ids = serializer.validated_data['user_ids']
+            group_ids = serializer.validated_data['group_ids']
+            result = run_async(invite_users_to_groups_inner(user_ids, group_ids))
+            return Response(result)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 async def remove_users_from_groups_inner(user_ids, group_ids):
@@ -204,11 +209,14 @@ async def remove_users_from_groups_inner(user_ids, group_ids):
 
 class RemoveUsersView(APIView):
     def post(self, request):
-        data = request.data
-        user_ids = data['user_ids']
-        group_ids = data['group_ids']
-        result = run_async(remove_users_from_groups_inner(user_ids, group_ids))
-        return Response(result)
+        serializer = RemoveUsersSerializer(data=request.data)
+        if serializer.is_valid():
+            user_ids = serializer.validated_data['user_ids']
+            group_ids = serializer.validated_data['group_ids']
+            result = run_async(remove_users_from_groups_inner(user_ids, group_ids))
+            return Response(result)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 async def post_message_to_groups_inner(message, group_ids):
@@ -245,18 +253,19 @@ async def post_message_to_groups_inner(message, group_ids):
 
 class PostMessageToGroupsView(APIView):
     def post(self, request):
-        message = request.data.get('message')
-        group_ids = request.data.get('group_ids')
+        serializer = PostMessagesSerializer(data=request.data)
+        if serializer.is_valid():
+            message = serializer.validated_data['message']
+            group_ids = serializer.validated_data['group_ids']
 
-        if not message or not group_ids:
-            return Response({"error": "Message and group_ids are required."}, status=status.HTTP_400_BAD_REQUEST)
+            if "all" in group_ids:
+                admin_group_usernames = run_async(get_admin_group_usernames())
+                group_ids = [group_id for group_id, username in admin_group_usernames.items()]
 
-        if "all" in group_ids:
-            admin_group_usernames = run_async(get_admin_group_usernames())
-            group_ids = [group_id for group_id, username in admin_group_usernames.items()]
-
-        results = run_async(post_message_to_groups_inner(message, group_ids))
-        return Response(results)
+            results = run_async(post_message_to_groups_inner(message, group_ids))
+            return Response(results)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 async def get_admin_group_usernames():
@@ -419,3 +428,82 @@ async def get_dialogs():
         hash=0
     ))
     return dialogs
+
+
+class AdminGroupsView(APIView):
+
+    def get(self, request, group_id=None):
+        admin_id = request.session.get('admin_id')
+
+        if not admin_id:
+            return Response({"error": "Admin ID is missing."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            admin = Admins.objects.get(admin_id=admin_id)
+            if group_id:
+                group = TelegramGroups.objects.get(group_id=group_id, admin=admin)
+                serializer = TelegramGroupSerializer(group)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            else:
+                groups = TelegramGroups.objects.filter(admin=admin)
+                serializer = TelegramGroupSerializer(groups, many=True)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Admins.DoesNotExist:
+            return Response({"error": "Admin not found."}, status=status.HTTP_404_NOT_FOUND)
+        except TelegramGroups.DoesNotExist:
+            return Response({"error": "Group not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error in AdminGroupsView: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def put(self, request, group_id):
+        return self.update_group(request, group_id)
+
+    def patch(self, request, group_id):
+        return self.update_group(request, group_id, partial=True)
+
+    def update_group(self, request, group_id, partial=False):
+        admin_id = request.session.get('admin_id')
+
+        if not admin_id:
+            return Response({"error": "Admin ID is missing."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            admin = Admins.objects.get(admin_id=admin_id)
+            group = TelegramGroups.objects.get(group_id=group_id, admin=admin)
+            serializer = TelegramGroupSerializer(group, data=request.data, partial=partial)
+
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Admins.DoesNotExist:
+            return Response({"error": "Admin not found."}, status=status.HTTP_404_NOT_FOUND)
+        except TelegramGroups.DoesNotExist:
+            return Response({"error": "Group not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error in AdminGroupsView: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def delete(self, request, group_id):
+        admin_id = request.session.get('admin_id')
+
+        if not admin_id:
+            return Response({"error": "Admin ID is missing."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            admin = Admins.objects.get(admin_id=admin_id)
+            group = TelegramGroups.objects.get(group_id=group_id, admin=admin)
+            group.delete()
+            return Response({"message": "Group deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+
+        except Admins.DoesNotExist:
+            return Response({"error": "Admin not found."}, status=status.HTTP_404_NOT_FOUND)
+        except TelegramGroups.DoesNotExist:
+            return Response({"error": "Group not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error in AdminGroupsView: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
